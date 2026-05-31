@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Environment
+.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Audio temp files (from Whisper pipeline)
+*.wav
+*.mp3
+*.m4a
+*.webm
+
+# Cookies (contains auth tokens — NEVER commit)
+cookies.txt
