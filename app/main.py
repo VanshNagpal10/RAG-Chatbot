@@ -26,13 +26,16 @@ from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 
 from app.schemas import (
+    ChatRequest,
     ExtractionRequest,
     ExtractionResponse,
     IngestionResponse,
     IngestionStats,
 )
+from app.chat import stream_rag_response
 from app.services import extract_single_video
 from app.vector_store import (
     VectorStoreService,
@@ -324,6 +327,79 @@ async def vector_store_stats(
 ):
     """Returns current ChromaDB collection stats."""
     return vs.get_collection_stats()
+
+
+@app.post(
+    "/chat",
+    summary="Chat with the RAG pipeline (SSE streaming)",
+    description=(
+        "Send a question about the ingested videos and receive a streaming response. "
+        "The response is streamed as Server-Sent Events (SSE) with three event types: "
+        "'token' (LLM output), 'sources' (cited documents), and 'done' (stream end)."
+    ),
+)
+async def chat(
+    request: ChatRequest,
+    vs: VectorStoreService = Depends(get_vector_store_service),
+):
+    """
+    RAG chat endpoint with SSE streaming.
+
+    Flow:
+    1. Reformulate the query using chat history (history-aware retriever)
+    2. Search ChromaDB for relevant transcript chunks
+    3. Stream the LLM's answer token-by-token as SSE events
+    4. Emit source documents as the final SSE event
+
+    SSE event format:
+        data: {"type": "token", "content": "The"}
+        data: {"type": "token", "content": " engagement"}
+        ...
+        data: {"type": "sources", "content": [{"video_id": "A", ...}]}
+        data: {"type": "done"}
+
+    Requires GOOGLE_API_KEY in .env for the Gemini LLM.
+    """
+    # Validate that the LLM API key is configured
+    google_key = os.getenv("GOOGLE_API_KEY")
+    if not google_key:
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "GOOGLE_API_KEY is not set. The /chat endpoint requires a Gemini API key. "
+                "Get a free one at https://aistudio.google.com/apikey"
+            ),
+        )
+
+    # Check that we have documents in the vector store
+    stats = vs.get_collection_stats()
+    if stats.get("total_documents", 0) == 0:
+        raise HTTPException(
+            status_code=400,
+            detail="No documents in the vector store. Run /ingest first.",
+        )
+
+    # Convert ChatRequest history to the format expected by the streaming generator
+    raw_history = [msg.model_dump() for msg in request.chat_history]
+
+    logger.info("Chat query: '%s' (history: %d messages)", request.query[:80], len(raw_history))
+
+    # Return a StreamingResponse with SSE content type.
+    # The generator yields SSE-formatted events as the LLM produces tokens.
+    return StreamingResponse(
+        stream_rag_response(
+            query=request.query,
+            chat_history=raw_history,
+            vs=vs,
+        ),
+        media_type="text/event-stream",
+        headers={
+            # Prevent proxy/CDN buffering — SSE must be delivered immediately
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",  # nginx
+        },
+    )
 
 
 # ─────────────────────────────────────────────

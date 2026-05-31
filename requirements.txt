@@ -10,13 +10,17 @@ youtube-transcript-api>=1.2.0
 # Audio transcription — optional, only for Whisper fallback
 openai>=1.82.0
 
-# LangChain — chunking, documents
+# LangChain — chunking, documents, chains
 langchain-core>=0.3.60
 langchain-text-splitters>=0.3.0
+langchain>=0.3.0
 
 # Local embeddings — FREE, no API key needed
 langchain-huggingface>=1.2.0
 sentence-transformers>=5.0.0
+
+# LLM — Gemini 1.5 Flash (free) for RAG chat
+langchain-google-genai>=4.0.0
 
 # Vector store
 langchain-chroma>=0.2.0

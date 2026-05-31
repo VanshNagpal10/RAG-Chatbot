@@ -169,3 +169,43 @@ class IngestionResponse(BaseModel):
     collection_stats: dict = Field(default_factory=dict)
     errors: list[str] = Field(default_factory=list)
 
+
+# ─────────────────────────────────────────────
+# CHAT MODELS (Day 3)
+# ─────────────────────────────────────────────
+
+
+class ChatMessage(BaseModel):
+    """A single message in chat history (OpenAI-compatible format)."""
+
+    role: Literal["user", "assistant"]
+    content: str
+
+
+class ChatRequest(BaseModel):
+    """
+    Request body for the /chat endpoint.
+
+    The frontend sends:
+    {
+        "query": "Why did Video A get more engagement?",
+        "chat_history": [
+            {"role": "user", "content": "What's the engagement rate of A?"},
+            {"role": "assistant", "content": "Video A has an engagement rate of 5.5%"}
+        ]
+    }
+
+    chat_history is optional — first message in a conversation won't have any.
+    """
+
+    query: str = Field(
+        ...,
+        min_length=1,
+        max_length=2000,
+        description="The user's question about the videos.",
+    )
+    chat_history: list[ChatMessage] = Field(
+        default_factory=list,
+        description="Previous messages in the conversation.",
+    )
+
