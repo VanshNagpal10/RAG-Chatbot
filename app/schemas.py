@@ -142,3 +142,30 @@ class ExtractionResponse(BaseModel):
         default_factory=list,
         description="Non-fatal warnings or partial failures encountered during extraction.",
     )
+
+
+# ─────────────────────────────────────────────
+# INGESTION MODELS (Day 2)
+# ─────────────────────────────────────────────
+
+
+class IngestionStats(BaseModel):
+    """Stats for a single video's ingestion into the vector store."""
+
+    video_id: Literal["A", "B"]
+    chunks_stored: int
+    title: Optional[str] = None
+    platform: Optional[str] = None
+
+
+class IngestionResponse(BaseModel):
+    """
+    Response from the /ingest endpoint.
+    Covers the full pipeline: extract → chunk → embed → store.
+    """
+
+    videos: list[IngestionStats]
+    total_chunks: int
+    collection_stats: dict = Field(default_factory=dict)
+    errors: list[str] = Field(default_factory=list)
+

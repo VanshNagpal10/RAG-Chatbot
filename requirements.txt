@@ -1,17 +1,26 @@
 # Core framework
-fastapi==0.115.12
-uvicorn[standard]==0.34.3
-pydantic==2.11.3
+fastapi>=0.115.0
+uvicorn[standard]>=0.34.0
+pydantic>=2.11.0
 
 # Video extraction
-yt-dlp==2025.5.22
-youtube-transcript-api==1.2.4
+yt-dlp>=2025.5.0
+youtube-transcript-api>=1.2.0
 
 # Audio transcription (Whisper via OpenAI API)
-openai==1.82.0
+openai>=1.82.0
 
-# Async HTTP (for potential future use & health checks)
-httpx==0.28.1
+# LangChain — chunking, documents, embeddings
+langchain-core>=0.3.60
+langchain-text-splitters>=0.3.0
+langchain-openai>=0.3.0
+
+# Vector store
+langchain-chroma>=0.2.0
+chromadb>=1.0.0
+
+# Async HTTP
+httpx>=0.28.0
 
 # Environment variable management
-python-dotenv==1.1.0
+python-dotenv>=1.1.0

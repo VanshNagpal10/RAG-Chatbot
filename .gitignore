@@ -32,3 +32,6 @@ Thumbs.db
 
 # Cookies (contains auth tokens — NEVER commit)
 cookies.txt
+
+# ChromaDB persistent storage (local data)
+chroma_db/
