@@ -71,12 +71,15 @@ async def lifespan(app: FastAPI):
     Validates config and initializes the vector store eagerly so the first
     request doesn't pay the cold-start cost.
     """
-    # Validate critical env vars at startup, not at first request
+    # No API key needed for embeddings — BAAI/bge-small-en-v1.5 runs locally.
+    # OPENAI_API_KEY is optional — only used for Whisper transcription fallback.
     api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key or api_key == "sk-your-key-here":
-        logger.warning(
-            "OPENAI_API_KEY is not set or is the placeholder value. "
-            "Whisper transcription and embeddings will fail. Set it in .env"
+    if api_key and api_key != "sk-your-key-here":
+        logger.info("OpenAI API key found — Whisper transcription fallback enabled.")
+    else:
+        logger.info(
+            "No OpenAI API key set — Whisper fallback disabled. "
+            "Most YouTube videos have captions, so this is fine."
         )
 
     cookies_path = os.getenv("COOKIES_PATH", "./cookies.txt")
