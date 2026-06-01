@@ -156,6 +156,11 @@ class IngestionStats(BaseModel):
     chunks_stored: int
     title: Optional[str] = None
     platform: Optional[str] = None
+    metadata: Optional[VideoMetadata] = Field(
+        default=None,
+        description="Full extracted metadata for the video (views, likes, engagement, etc.).",
+    )
+
 
 
 class IngestionResponse(BaseModel):

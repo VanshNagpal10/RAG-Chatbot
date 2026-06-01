@@ -282,6 +282,7 @@ async def ingest_videos(
                         chunks_stored=stored_count,
                         title=extraction_result.metadata.title,
                         platform=extraction_result.metadata.platform,
+                        metadata=extraction_result.metadata,
                     )
                 )
                 total_chunks += stored_count
@@ -299,6 +300,7 @@ async def ingest_videos(
                         chunks_stored=0,
                         title=extraction_result.metadata.title,
                         platform=extraction_result.metadata.platform,
+                        metadata=extraction_result.metadata,
                     )
                 )
 
