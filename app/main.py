@@ -1,20 +1,3 @@
-"""
-main.py — FastAPI application entry point.
-
-Responsibilities:
-- /extract endpoint: Extract metadata and transcripts from two video URLs
-- /ingest endpoint: Full pipeline — extract + chunk + embed + store in ChromaDB
-- /health endpoint: Health check for monitoring
-- Structured logging configuration
-- Clean error responses (never raw tracebacks to the client)
-
-Why FastAPI?
-- Native async support (critical for our threaded extraction pipeline)
-- Pydantic V2 integration for request/response validation
-- Auto-generated OpenAPI docs at /docs
-- Minimal boilerplate
-"""
-
 from __future__ import annotations
 
 import asyncio
@@ -43,11 +26,6 @@ from app.vector_store import (
     get_vector_store_service,
 )
 
-# ─────────────────────────────────────────────
-# CONFIGURATION
-# ─────────────────────────────────────────────
-
-# Load .env before anything else touches os.environ
 load_dotenv()
 
 # Configure structured logging
@@ -61,21 +39,11 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-# ─────────────────────────────────────────────
-# APP LIFECYCLE
-# ─────────────────────────────────────────────
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """
-    Startup/shutdown lifecycle.
-
-    Validates config and initializes the vector store eagerly so the first
-    request doesn't pay the cold-start cost.
-    """
     # No API key needed for embeddings — BAAI/bge-small-en-v1.5 runs locally.
-    # OPENAI_API_KEY is optional — only used for Whisper transcription fallback.
     api_key = os.getenv("OPENAI_API_KEY")
     if api_key and api_key != "sk-your-key-here":
         logger.info("OpenAI API key found — Whisper transcription fallback enabled.")
@@ -115,10 +83,6 @@ async def lifespan(app: FastAPI):
     logger.info("RAG Chat service shutting down.")
 
 
-# ─────────────────────────────────────────────
-# APP FACTORY
-# ─────────────────────────────────────────────
-
 app = FastAPI(
     title="RAG Chat — Video Analysis API",
     description=(
@@ -129,7 +93,6 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS — permissive for dev, lock down in production
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -137,11 +100,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-# ─────────────────────────────────────────────
-# ROUTES
-# ─────────────────────────────────────────────
 
 
 @app.get("/health")
@@ -164,10 +122,7 @@ async def health_check():
     ),
 )
 async def extract_videos(request: ExtractionRequest):
-    """
-    Extraction-only endpoint (Day 1).
-    Returns raw metadata + transcripts without storing anything.
-    """
+    
     cookies_path = os.getenv("COOKIES_PATH", "./cookies.txt")
     cookies_from_browser = os.getenv("COOKIES_FROM_BROWSER", "").strip() or None
 
@@ -219,18 +174,6 @@ async def ingest_videos(
     request: ExtractionRequest,
     vs: VectorStoreService = Depends(get_vector_store_service),
 ):
-    """
-    Full pipeline endpoint (Day 2).
-
-    Flow:
-    1. Extract metadata + transcripts for both videos (parallel)
-    2. Chunk each transcript into LangChain Documents with rich metadata
-    3. Embed and store chunks in ChromaDB (async, non-blocking)
-    4. Return stats about what was stored
-
-    Idempotency: If Video A was already ingested, its old chunks are deleted
-    before the new ones are inserted. No duplicates.
-    """
     cookies_path = os.getenv("COOKIES_PATH", "./cookies.txt")
     cookies_from_browser = os.getenv("COOKIES_FROM_BROWSER", "").strip() or None
     all_warnings: list[str] = []
@@ -344,24 +287,6 @@ async def chat(
     request: ChatRequest,
     vs: VectorStoreService = Depends(get_vector_store_service),
 ):
-    """
-    RAG chat endpoint with SSE streaming.
-
-    Flow:
-    1. Reformulate the query using chat history (history-aware retriever)
-    2. Search ChromaDB for relevant transcript chunks
-    3. Stream the LLM's answer token-by-token as SSE events
-    4. Emit source documents as the final SSE event
-
-    SSE event format:
-        data: {"type": "token", "content": "The"}
-        data: {"type": "token", "content": " engagement"}
-        ...
-        data: {"type": "sources", "content": [{"video_id": "A", ...}]}
-        data: {"type": "done"}
-
-    Requires GROQ_API_KEY in .env for the Groq LLM.
-    """
     # Validate that the LLM API key is configured
     groq_key = os.getenv("GROQ_API_KEY")
     if not groq_key:
@@ -404,10 +329,6 @@ async def chat(
     )
 
 
-# ─────────────────────────────────────────────
-# ENTRYPOINT
-# ─────────────────────────────────────────────
-
 if __name__ == "__main__":
     import uvicorn
 
@@ -415,6 +336,6 @@ if __name__ == "__main__":
         "app.main:app",
         host="0.0.0.0",
         port=8000,
-        reload=True,  # Auto-reload on file changes during development
+        reload=True, 
         log_level=log_level.lower(),
     )

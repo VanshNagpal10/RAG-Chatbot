@@ -1,29 +1,9 @@
-"""
-schemas.py — Pydantic V2 models for the data extraction pipeline.
-
-Design decisions:
-- Every field that *might* be unavailable from a scrape is Optional with a sensible default.
-  Social platforms are notoriously inconsistent: Instagram might not expose follower_count
-  through yt-dlp, YouTube might not expose it for topic channels, etc.
-- engagement_rate is computed downstream (in services.py), NOT accepted from the client.
-- TranscriptChunk carries its own video_id so chunks are self-describing once they leave
-  this layer and enter the vector DB in later sprints.
-- We use Literal["A", "B"] instead of a free-form str to enforce the two-video constraint
-  at the type level. If a chunk says video_id="C", Pydantic rejects it.
-"""
-
 from __future__ import annotations
 
 from datetime import datetime
 from typing import Literal, Optional
 
 from pydantic import BaseModel, Field, HttpUrl, model_validator
-
-
-# ─────────────────────────────────────────────
-# REQUEST MODELS
-# ─────────────────────────────────────────────
-
 
 class VideoInput(BaseModel):
     """A single video URL with its assigned label."""
@@ -56,22 +36,8 @@ class ExtractionRequest(BaseModel):
         return self
 
 
-# ─────────────────────────────────────────────
-# METADATA MODELS
-# ─────────────────────────────────────────────
-
 
 class VideoMetadata(BaseModel):
-    """
-    Normalized metadata common to both YouTube and Instagram.
-
-    Fields are Optional because extraction is best-effort:
-    - Instagram might not expose follower_count via yt-dlp
-    - Some YouTube videos hide like counts
-    - Hashtags may not exist on every video
-
-    We never want a missing optional field to crash the pipeline.
-    """
 
     video_id: Literal["A", "B"]
     platform: Literal["youtube", "instagram"]
@@ -90,19 +56,9 @@ class VideoMetadata(BaseModel):
     engagement_rate: Optional[float] = None
 
 
-# ─────────────────────────────────────────────
-# TRANSCRIPT MODELS
-# ─────────────────────────────────────────────
-
 
 class TranscriptChunk(BaseModel):
-    """
-    A single timestamped segment of a transcript.
-
-    Why separate start/end instead of a single timestamp?
-    Because downstream RAG retrieval benefits from knowing the *span* of a chunk —
-    it lets the frontend highlight the exact video segment in the player.
-    """
+    
 
     video_id: Literal["A", "B"]
     text: str
@@ -119,10 +75,6 @@ class TranscriptResult(BaseModel):
     chunks: list[TranscriptChunk]
 
 
-# ─────────────────────────────────────────────
-# RESPONSE MODELS
-# ─────────────────────────────────────────────
-
 
 class VideoExtractionResult(BaseModel):
     """Complete extraction result for a single video."""
@@ -132,10 +84,7 @@ class VideoExtractionResult(BaseModel):
 
 
 class ExtractionResponse(BaseModel):
-    """
-    Top-level response from the /extract endpoint.
-    Always contains exactly two results (A and B), even if one partially failed.
-    """
+    
 
     results: list[VideoExtractionResult]
     errors: list[str] = Field(
@@ -144,13 +93,8 @@ class ExtractionResponse(BaseModel):
     )
 
 
-# ─────────────────────────────────────────────
-# INGESTION MODELS (Day 2)
-# ─────────────────────────────────────────────
-
-
 class IngestionStats(BaseModel):
-    """Stats for a single video's ingestion into the vector store."""
+
 
     video_id: Literal["A", "B"]
     chunks_stored: int
@@ -164,10 +108,7 @@ class IngestionStats(BaseModel):
 
 
 class IngestionResponse(BaseModel):
-    """
-    Response from the /ingest endpoint.
-    Covers the full pipeline: extract → chunk → embed → store.
-    """
+ 
 
     videos: list[IngestionStats]
     total_chunks: int
@@ -175,33 +116,16 @@ class IngestionResponse(BaseModel):
     errors: list[str] = Field(default_factory=list)
 
 
-# ─────────────────────────────────────────────
-# CHAT MODELS (Day 3)
-# ─────────────────────────────────────────────
-
 
 class ChatMessage(BaseModel):
-    """A single message in chat history (OpenAI-compatible format)."""
+
 
     role: Literal["user", "assistant"]
     content: str
 
 
 class ChatRequest(BaseModel):
-    """
-    Request body for the /chat endpoint.
-
-    The frontend sends:
-    {
-        "query": "Why did Video A get more engagement?",
-        "chat_history": [
-            {"role": "user", "content": "What's the engagement rate of A?"},
-            {"role": "assistant", "content": "Video A has an engagement rate of 5.5%"}
-        ]
-    }
-
-    chat_history is optional — first message in a conversation won't have any.
-    """
+ 
 
     query: str = Field(
         ...,

@@ -1,41 +1,3 @@
-"""
-chat.py — RAG conversational pipeline with streaming.
-
-Architecture notes:
-─────────────────────────────────────────────────────────────────────
-THE RAG CHAIN (Pure LCEL — LangChain Expression Language):
-
-  This uses pure LCEL composition — no deprecated chain helpers.
-  The pipeline has two stages:
-
-  Stage 1: HISTORY-AWARE RETRIEVAL
-    If there's chat history, we ask the LLM to reformulate the query into
-    a standalone question. Then we search ChromaDB with that standalone query.
-    If there's no history, we search with the original query directly.
-
-  Stage 2: CONTEXTUAL ANSWER GENERATION
-    The retrieved transcript chunks + metadata are injected into the system
-    prompt. The LLM generates an answer grounded ONLY in this context.
-
-STREAMING:
-  We split the pipeline into two explicit steps:
-  1. Retrieve docs (non-streaming — fast, ~50ms with local embeddings)
-  2. Stream LLM tokens (async generator — ChatGPT-like typing effect)
-
-  This is cleaner than streaming through a monolithic chain because:
-  - We have the source docs immediately (no waiting for stream to finish)
-  - We control the exact SSE event format
-  - Error handling is straightforward
-
-SSE FORMAT:
-  data: {"type": "token", "content": "The"}\n\n
-  data: {"type": "token", "content": " engagement"}\n\n
-  ...
-  data: {"type": "sources", "content": [{...}]}\n\n
-  data: {"type": "done"}\n\n
-─────────────────────────────────────────────────────────────────────
-"""
-
 from __future__ import annotations
 
 import json
@@ -52,17 +14,6 @@ from app.vector_store import VectorStoreService
 
 logger = logging.getLogger(__name__)
 
-
-# ─────────────────────────────────────────────
-# PROMPTS
-# ─────────────────────────────────────────────
-
-# Stage 1: Reformulate follow-up questions into standalone queries.
-#
-# Example:
-#   History: User: "What's the engagement rate of Video A?" → AI: "5.5%"
-#   User:    "What about Video B?"
-#   Output:  "What is the engagement rate of Video B?"
 CONTEXTUALIZE_Q_PROMPT = ChatPromptTemplate.from_messages(
     [
         (
@@ -78,7 +29,6 @@ CONTEXTUALIZE_Q_PROMPT = ChatPromptTemplate.from_messages(
 )
 
 
-# Stage 2: Answer using ONLY the retrieved context.
 QA_SYSTEM_PROMPT = """\
 You are an expert social media analyst. Your job is to compare Video A and Video B \
 using ONLY the provided context below.
@@ -107,12 +57,6 @@ QA_PROMPT = ChatPromptTemplate.from_messages(
     ]
 )
 
-
-# ─────────────────────────────────────────────
-# CHAT HISTORY CONVERSION
-# ─────────────────────────────────────────────
-
-
 def _convert_chat_history(
     raw_history: list[dict],
 ) -> list[HumanMessage | AIMessage]:
@@ -139,13 +83,6 @@ def _convert_chat_history(
 
 
 def _format_docs_as_context(docs: list[Document]) -> str:
-    """
-    Format retrieved documents into a text block for the system prompt.
-
-    Each chunk includes its metadata so the LLM can cite sources precisely:
-    ─── Video A | Chunk 3 | Views: 1,400,000 | Engagement: 5.5% ───
-    [00:43] Never gonna give you up...
-    """
     if not docs:
         return "No relevant documents found."
 
@@ -167,18 +104,7 @@ def _format_docs_as_context(docs: list[Document]) -> str:
     return "\n\n".join(parts)
 
 
-# ─────────────────────────────────────────────
-# SOURCE DOCUMENT SERIALIZATION
-# ─────────────────────────────────────────────
-
-
 def _serialize_sources(docs: list[Document]) -> list[dict]:
-    """
-    Convert LangChain Documents to JSON-serializable dicts for the frontend.
-
-    The frontend can render:
-    "📎 Video A [00:43] — Never Gonna Give You Up (1.4B views)"
-    """
     sources = []
     seen = set()
 
@@ -206,43 +132,13 @@ def _serialize_sources(docs: list[Document]) -> list[dict]:
     return sources
 
 
-# ─────────────────────────────────────────────
-# SSE STREAMING GENERATOR
-# ─────────────────────────────────────────────
-
-
 async def stream_rag_response(
     query: str,
     chat_history: list[dict],
     vs: VectorStoreService,
     model_name: str = "llama-3.3-70b-versatile",
 ) -> AsyncGenerator[str, None]:
-    """
-    SSE streaming generator for the /chat endpoint.
-
-    The pipeline:
-    ┌──────────────────────────────────────────────────────────────┐
-    │ 1. REFORMULATE (if chat history exists)                      │
-    │    LLM rewrites follow-up query → standalone question        │
-    │                                                              │
-    │ 2. RETRIEVE                                                  │
-    │    Search ChromaDB with standalone query → 8 relevant chunks │
-    │    (runs in thread via asyncio.to_thread — non-blocking)     │
-    │                                                              │
-    │ 3. GENERATE (streaming)                                      │
-    │    LLM reads context + query → streams answer token by token │
-    │    Each token emitted as SSE: data: {"type":"token",...}      │
-    │                                                              │
-    │ 4. SOURCES                                                   │
-    │    Emit retrieved docs as final SSE event                    │
-    └──────────────────────────────────────────────────────────────┘
-
-    LLM: Groq (llama-3.3-70b-versatile)
-    - Free tier: 30 RPM, 14,400 RPD, 131K context window
-    - Inference speed: ~500 tokens/sec (fastest in the market)
-    - Quality: 70B parameter Llama 3.3 — rivals GPT-4o on reasoning
-    - Cost: $0 on free tier
-    """
+   
     # Initialize Groq LLM — reads GROQ_API_KEY from env
     llm = ChatGroq(
         model=model_name,
@@ -253,7 +149,6 @@ async def stream_rag_response(
     lc_history = _convert_chat_history(chat_history)
 
     try:
-        # ─── Step 1: Reformulate query if there's chat history ───
         search_query = query
         if lc_history:
             # Use LCEL: prompt | llm | parser
@@ -265,18 +160,14 @@ async def stream_rag_response(
                 "Reformulated query: '%s' → '%s'", query[:60], search_query[:60]
             )
 
-        # ─── Step 2: Retrieve relevant chunks from ChromaDB ───
-        # similarity_search is already wrapped in asyncio.to_thread in vector_store.py
-        source_docs = await vs.similarity_search(
+        source_docs = await vs.balanced_search(
             query=search_query,
-            k=8,  # 8 chunks — enough for comparison queries across 2 videos
+            k=8,  # 4 from Video A + 4 from Video B
         )
         logger.info(
             "Retrieved %d chunks for query: '%s'", len(source_docs), search_query[:60]
         )
 
-        # ─── Step 3: Stream the LLM answer ───
-        # Format the retrieved docs into the context block
         context_text = _format_docs_as_context(source_docs)
 
         # Build the QA prompt with context injected
@@ -290,8 +181,6 @@ async def stream_rag_response(
 
         full_answer = ""
 
-        # .astream() yields ChatMessage chunks with partial content.
-        # Each chunk.content is a single token (or small group of tokens).
         async for chunk in llm.astream(qa_messages):
             token = chunk.content
             if token:
@@ -299,7 +188,6 @@ async def stream_rag_response(
                 event = json.dumps({"type": "token", "content": token})
                 yield f"data: {event}\n\n"
 
-        # ─── Step 4: Emit source documents ───
         sources_payload = _serialize_sources(source_docs)
         sources_event = json.dumps({"type": "sources", "content": sources_payload})
         yield f"data: {sources_event}\n\n"

@@ -1,46 +1,3 @@
-"""
-services.py — Core extraction logic for YouTube and Instagram videos.
-
-Architecture notes:
-─────────────────────────────────────────────────────────────────────
-ASYNC STRATEGY:
-  yt-dlp, youtube-transcript-api, and faster-whisper are all synchronous.
-  FastAPI runs on an asyncio event loop — blocking it kills concurrency.
-
-  Solution: Every blocking call is wrapped in `asyncio.to_thread()` which pushes the
-  work onto the default ThreadPoolExecutor. This means:
-    1. The event loop stays free to handle other requests.
-    2. We get natural parallelism — both videos extract concurrently via asyncio.gather().
-    3. No need for a custom thread pool unless we hit >40 concurrent extractions
-       (the default pool size).
-
-YOUTUBE TRANSCRIPT FALLBACK CHAIN:
-  1. youtube-transcript-api (manual captions)  →  fastest, highest quality
-  2. youtube-transcript-api (auto-generated)   →  still fast, lower quality
-  3. yt-dlp audio download → local Whisper     →  slowest, but always works & FREE
-
-INSTAGRAM RESILIENCE:
-  Meta's CDN is hostile to scrapers. We mitigate with:
-  - cookies.txt from an authenticated browser session
-  - Desktop Chrome User-Agent
-  - Audio-only download (saves bandwidth, reduces detection surface)
-  - Generous retry/timeout config in yt-dlp
-
-LOCAL WHISPER (faster-whisper):
-  We use CTranslate2-based faster-whisper instead of the paid OpenAI API.
-  - Model: "base" (~150MB, downloads once, cached forever)
-  - 4x faster than original openai-whisper on CPU
-  - Zero API cost — critical for keeping the project in budget
-  - Trade-off: ~30s per 1-minute reel on CPU (acceptable for prototyping)
-  - For production scale: swap to GPU instance or hosted Whisper service
-
-ERROR PHILOSOPHY:
-  We never let one video's failure crash the other. Each extraction is independent.
-  Errors are collected into a warnings list and returned alongside whatever data
-  we successfully extracted. The caller decides what's acceptable.
-─────────────────────────────────────────────────────────────────────
-"""
-
 from __future__ import annotations
 
 import asyncio
@@ -66,22 +23,10 @@ from app.schemas import (
 
 logger = logging.getLogger(__name__)
 
-# ─────────────────────────────────────────────
-# PLATFORM DETECTION
-# ─────────────────────────────────────────────
-
 
 def detect_platform(url: str) -> Literal["youtube", "instagram"]:
-    """
-    Determine the platform from the URL.
-
-    We parse the hostname rather than regex-matching the full URL because:
-    - YouTube has multiple valid domains (youtube.com, youtu.be, m.youtube.com)
-    - Instagram has reels under instagram.com/reel/ and instagram.com/p/
-    - This is more resilient to URL parameter variations
-    """
+   
     host = urlparse(url).hostname or ""
-    # Strip 'www.' and 'm.' prefixes for normalization
     host = re.sub(r"^(www\.|m\.)", "", host)
 
     if host in ("youtube.com", "youtu.be"):
@@ -123,10 +68,7 @@ def extract_youtube_video_id(url: str) -> str:
     raise ValueError(f"Could not extract YouTube video ID from: {url}")
 
 
-# ─────────────────────────────────────────────
 # YT-DLP BASE OPTIONS
-# ─────────────────────────────────────────────
-
 
 def _yt_dlp_base_opts(
     cookies_path: Optional[str] = None,
@@ -185,10 +127,7 @@ def _yt_dlp_base_opts(
     return opts
 
 
-# ─────────────────────────────────────────────
 # METADATA EXTRACTION
-# ─────────────────────────────────────────────
-
 
 def _extract_metadata_sync(
     url: str,
@@ -304,10 +243,8 @@ async def extract_metadata(
     )
 
 
-# ─────────────────────────────────────────────
-# TRANSCRIPT EXTRACTION — YOUTUBE
-# ─────────────────────────────────────────────
 
+# TRANSCRIPT EXTRACTION — YOUTUBE
 
 def _fetch_youtube_transcript_sync(
     url: str,
@@ -394,9 +331,7 @@ async def fetch_youtube_transcript(
     return await asyncio.to_thread(_fetch_youtube_transcript_sync, url, video_id)
 
 
-# ─────────────────────────────────────────────
 # TRANSCRIPT EXTRACTION — WHISPER FALLBACK
-# ─────────────────────────────────────────────
 
 
 def _download_audio_sync(

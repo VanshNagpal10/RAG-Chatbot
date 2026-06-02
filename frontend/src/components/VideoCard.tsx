@@ -24,18 +24,18 @@ export default function VideoCard({ metadata, label }: VideoCardProps) {
   // Color-code engagement rate
   const engColor =
     engRate == null
-      ? 'from-zinc-600 to-zinc-500'
+      ? 'bg-zinc-700'
       : engRate >= 5
-        ? 'from-emerald-500 to-emerald-400'
+        ? 'bg-emerald-600'
         : engRate >= 2
-          ? 'from-amber-500 to-yellow-400'
-          : 'from-red-500 to-red-400';
+          ? 'bg-amber-600'
+          : 'bg-red-600';
 
   return (
     <div className="bg-zinc-900/80 border border-zinc-800 rounded-2xl overflow-hidden backdrop-blur-sm">
       {/* Video Label Badge */}
       <div className="flex items-center gap-2 px-4 pt-4 pb-2">
-        <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-violet-600 text-white text-xs font-bold">
+        <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-sky-600 text-white text-xs font-bold">
           {label}
         </span>
         <h3 className="text-sm font-semibold text-zinc-100 truncate flex-1" title={metadata.title || 'Untitled'}>
@@ -70,7 +70,7 @@ export default function VideoCard({ metadata, label }: VideoCardProps) {
       {/* Engagement Rate Badge */}
       <div className="px-4 pt-3">
         <div
-          className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gradient-to-r ${engColor} bg-opacity-10`}
+          className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg ${engColor}`}
           title={engRate == null ? 'Views not available — engagement rate cannot be computed' : `Engagement: ${engRate.toFixed(2)}%`}
         >
           <span className="text-[10px] uppercase tracking-widest text-white/70">Engagement</span>

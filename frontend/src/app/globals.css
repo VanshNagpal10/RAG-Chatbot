@@ -6,7 +6,7 @@
   --border-subtle: #27272a;
   --text-primary: #f4f4f5;
   --text-secondary: #a1a1aa;
-  --accent: #8b5cf6;
+  --accent: #0ea5e9;
 }
 
 * {
@@ -53,7 +53,7 @@ body {
 
 .skeleton {
   animation: skeleton-pulse 1.5s ease-in-out infinite;
-  background: linear-gradient(90deg, #27272a 0%, #3f3f46 50%, #27272a 100%);
+  background: #3f3f46;
   background-size: 200% 100%;
   border-radius: 8px;
 }

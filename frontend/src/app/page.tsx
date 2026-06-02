@@ -109,11 +109,8 @@ export default function HomePage() {
           {/* Brand */}
           <div className="flex items-center gap-3 mb-3">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-600 to-fuchsia-500 flex items-center justify-center">
-                <span className="text-white text-xs font-bold">C</span>
-              </div>
               <h1 className="text-lg font-bold tracking-tight">
-                <span className="text-violet-400">CHROMA</span>
+                <span className="text-sky-400">CHROMA</span>
                 <span className="text-zinc-500 font-normal text-sm ml-2">
                   Video RAG Analytics
                 </span>
@@ -132,22 +129,22 @@ export default function HomePage() {
               type="url"
               value={urlA}
               onChange={e => setUrlA(e.target.value)}
-              placeholder="Video A URL (YouTube)"
+              placeholder="Video A URL (YouTube/Instagram)"
               disabled={status === 'processing'}
-              className="flex-1 bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm text-zinc-200 placeholder-zinc-600 outline-none focus:border-violet-500/50 disabled:opacity-50 transition-colors"
+              className="flex-1 bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm text-zinc-200 placeholder-zinc-600 outline-none focus:border-sky-500/50 disabled:opacity-50 transition-colors"
             />
             <input
               type="url"
               value={urlB}
               onChange={e => setUrlB(e.target.value)}
-              placeholder="Video B URL (YouTube / Instagram)"
+              placeholder="Video B URL (YouTube/Instagram)"
               disabled={status === 'processing'}
-              className="flex-1 bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm text-zinc-200 placeholder-zinc-600 outline-none focus:border-violet-500/50 disabled:opacity-50 transition-colors"
+              className="flex-1 bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm text-zinc-200 placeholder-zinc-600 outline-none focus:border-sky-500/50 disabled:opacity-50 transition-colors"
             />
             <button
               onClick={processVideos}
               disabled={status === 'processing' || !urlA.trim() || !urlB.trim()}
-              className="px-5 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+              className="px-5 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-white text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
             >
               {status === 'processing' ? (
                 <span className="flex items-center gap-2">
@@ -201,7 +198,7 @@ export default function HomePage() {
                     </div>
                     <p className="text-sm text-zinc-500">
                       Paste two video URLs above and click{' '}
-                      <span className="text-violet-400">Process Videos</span> to begin
+                      <span className="text-sky-400">Process Videos</span> to begin
                     </p>
                   </div>
                 </div>

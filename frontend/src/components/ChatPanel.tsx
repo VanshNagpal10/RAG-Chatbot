@@ -17,7 +17,7 @@ function SourceBadge({ source }: { source: SourceDoc }) {
     <div className="inline-block">
       <button
         onClick={() => setExpanded(!expanded)}
-        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-violet-500/10 border border-violet-500/20 text-[11px] text-violet-300 hover:bg-violet-500/20 transition-colors cursor-pointer"
+        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-sky-500/10 border border-sky-500/20 text-[11px] text-sky-300 hover:bg-sky-500/20 transition-colors cursor-pointer"
         title="Click to view source transcript"
       >
         <svg className="w-3 h-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -55,7 +55,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
       <div className={`max-w-[85%] space-y-2 ${isUser ? 'order-1' : ''}`}>
         {/* Role label */}
         <p className={`text-[10px] uppercase tracking-widest ${
-          isUser ? 'text-right text-violet-400' : 'text-zinc-500'
+          isUser ? 'text-right text-sky-400' : 'text-zinc-500'
         }`}>
           {isUser ? 'You' : 'CHROMA AI'}
         </p>
@@ -66,13 +66,13 @@ function MessageBubble({ message }: { message: ChatMessage }) {
             message.isError
               ? 'bg-red-500/10 text-red-300 border border-red-500/20 rounded-bl-md'
               : isUser
-                ? 'bg-violet-600 text-white rounded-br-md'
+                ? 'bg-sky-600 text-white rounded-br-md'
                 : 'bg-zinc-800/80 text-zinc-200 border border-zinc-700/50 rounded-bl-md'
           }`}
         >
           {message.content}
           {message.isStreaming && (
-            <span className="inline-block w-1.5 h-4 ml-0.5 bg-violet-400 animate-pulse rounded-sm" />
+            <span className="inline-block w-1.5 h-4 ml-0.5 bg-sky-400 animate-pulse rounded-sm" />
           )}
         </div>
 
@@ -290,8 +290,8 @@ export default function ChatPanel({ isReady }: ChatPanelProps) {
         {messages.length === 0 && (
           <div className="flex items-center justify-center h-full">
             <div className="text-center space-y-3 max-w-xs">
-              <div className="w-12 h-12 mx-auto rounded-2xl bg-violet-600/10 border border-violet-600/20 flex items-center justify-center">
-                <svg className="w-6 h-6 text-violet-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <div className="w-12 h-12 mx-auto rounded-2xl bg-sky-500/10 border border-sky-500/20 flex items-center justify-center">
+                <svg className="w-6 h-6 text-sky-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" />
                 </svg>
               </div>
@@ -313,7 +313,7 @@ export default function ChatPanel({ isReady }: ChatPanelProps) {
         <div className={`flex items-center gap-2 rounded-xl px-3 py-2 border transition-colors ${
           isLoading
             ? 'bg-zinc-800/30 border-zinc-700/30'
-            : 'bg-zinc-800/60 border-zinc-700/50 focus-within:border-violet-500/50'
+            : 'bg-zinc-800/60 border-zinc-700/50 focus-within:border-sky-500/50'
         }`}>
           <input
             ref={inputRef}
@@ -334,7 +334,7 @@ export default function ChatPanel({ isReady }: ChatPanelProps) {
           <button
             onClick={sendMessage}
             disabled={!input.trim() || isLoading || !isReady}
-            className="p-1.5 rounded-lg bg-violet-600 hover:bg-violet-500 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            className="p-1.5 rounded-lg bg-sky-500 hover:bg-sky-400 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             aria-label="Send message"
           >
             {isLoading ? (

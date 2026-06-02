@@ -1,46 +1,3 @@
-"""
-vector_store.py — Chunking, embedding, and vector storage service.
-
-Architecture notes:
-─────────────────────────────────────────────────────────────────────
-EMBEDDING MODEL: BAAI/bge-small-en-v1.5
-  Why this model?
-  - 384 dimensions — compact vectors, fast ChromaDB lookups
-  - ~130MB on disk — downloads once, runs locally forever
-  - Top-tier quality for its size on MTEB benchmark
-  - No API key, no rate limits, no cost — critical for 10K+ user scale
-  - English-optimized, which covers our primary use case
-
-  Trade-off vs API-based embeddings:
-  - Slower first load (~5-10s to download + load model weights)
-  - Uses CPU/RAM on the server instead of offloading to an API
-  - But: zero marginal cost per embed, no 429 errors, no quota management
-
-EVENT LOOP PROTECTION:
-  Running BAAI/bge-small-en-v1.5 on CPU is a blocking operation (~50-200ms
-  per batch of 40 documents). If we call this directly in an async route handler,
-  it freezes the FastAPI event loop — no other requests can be processed.
-
-  Solution: ALL embedding + ChromaDB insertion is wrapped in asyncio.to_thread(),
-  which runs the blocking work in a separate OS thread. The event loop stays free
-  to handle health checks, concurrent requests, etc.
-
-CHUNKING STRATEGY:
-  RecursiveCharacterTextSplitter with chunk_size=500, overlap=50.
-  - 500 chars ≈ 75-100 words ≈ 3-5 sentences — precise retrieval
-  - 50 char overlap prevents semantic loss at boundaries
-  - Splits on ["\n\n", "\n", ". ", " ", ""] to preserve natural boundaries
-
-IDEMPOTENCY:
-  Delete-then-insert by video_id. Re-ingesting Video A wipes old chunks first.
-
-METADATA:
-  Every chunk carries video_id, engagement stats (views, likes, engagement_rate),
-  creator info, and timestamps. The LLM can answer stats questions directly
-  from chunk metadata without needing a separate database query.
-─────────────────────────────────────────────────────────────────────
-"""
-
 from __future__ import annotations
 
 import asyncio
@@ -441,6 +398,40 @@ class VectorStoreService:
             )
 
         return await asyncio.to_thread(_sync_search)
+
+    async def balanced_search(
+        self,
+        query: str,
+        k: int = 8,
+    ) -> list[Document]:
+        """
+        Retrieve k/2 chunks from Video A and k/2 from Video B.
+
+        Why not just similarity_search(k=8)?
+        Because cosine similarity doesn't care about balance — if Video B's
+        transcript uses more similar vocabulary to the query, ALL 8 results
+        could come from Video B. The LLM then says "I don't have info about
+        Video A" which is a terrible user experience for a comparison app.
+
+        This method guarantees both videos are always represented.
+        """
+        per_video = k // 2
+
+        # Fetch from both videos concurrently
+        docs_a, docs_b = await asyncio.gather(
+            self.similarity_search(query=query, k=per_video, video_id="A"),
+            self.similarity_search(query=query, k=per_video, video_id="B"),
+        )
+
+        # Interleave: A1, B1, A2, B2, ... (better for LLM context)
+        merged = []
+        for i in range(max(len(docs_a), len(docs_b))):
+            if i < len(docs_a):
+                merged.append(docs_a[i])
+            if i < len(docs_b):
+                merged.append(docs_b[i])
+
+        return merged
 
     def get_collection_stats(self) -> dict:
         """Return basic stats about what's in the vector store."""

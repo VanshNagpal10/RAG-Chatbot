@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "CHROMA — Video RAG Analytics",
+  title: "CHROMA",
   description:
     "Compare social media videos with AI-powered transcript analysis. " +
     "Ingest YouTube & Instagram videos, compute engagement metrics, and " +
