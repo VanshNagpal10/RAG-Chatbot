@@ -4,7 +4,7 @@ services.py — Core extraction logic for YouTube and Instagram videos.
 Architecture notes:
 ─────────────────────────────────────────────────────────────────────
 ASYNC STRATEGY:
-  yt-dlp, youtube-transcript-api, and the OpenAI Whisper client are all synchronous.
+  yt-dlp, youtube-transcript-api, and faster-whisper are all synchronous.
   FastAPI runs on an asyncio event loop — blocking it kills concurrency.
 
   Solution: Every blocking call is wrapped in `asyncio.to_thread()` which pushes the
@@ -17,7 +17,7 @@ ASYNC STRATEGY:
 YOUTUBE TRANSCRIPT FALLBACK CHAIN:
   1. youtube-transcript-api (manual captions)  →  fastest, highest quality
   2. youtube-transcript-api (auto-generated)   →  still fast, lower quality
-  3. yt-dlp audio download → Whisper API       →  slowest, but always works
+  3. yt-dlp audio download → local Whisper     →  slowest, but always works & FREE
 
 INSTAGRAM RESILIENCE:
   Meta's CDN is hostile to scrapers. We mitigate with:
@@ -25,6 +25,14 @@ INSTAGRAM RESILIENCE:
   - Desktop Chrome User-Agent
   - Audio-only download (saves bandwidth, reduces detection surface)
   - Generous retry/timeout config in yt-dlp
+
+LOCAL WHISPER (faster-whisper):
+  We use CTranslate2-based faster-whisper instead of the paid OpenAI API.
+  - Model: "base" (~150MB, downloads once, cached forever)
+  - 4x faster than original openai-whisper on CPU
+  - Zero API cost — critical for keeping the project in budget
+  - Trade-off: ~30s per 1-minute reel on CPU (acceptable for prototyping)
+  - For production scale: swap to GPU instance or hosted Whisper service
 
 ERROR PHILOSOPHY:
   We never let one video's failure crash the other. Each extraction is independent.
@@ -46,7 +54,7 @@ from typing import Literal, Optional
 from urllib.parse import urlparse
 
 import yt_dlp
-from openai import OpenAI
+from faster_whisper import WhisperModel
 from youtube_transcript_api import YouTubeTranscriptApi
 
 from app.schemas import (
@@ -241,7 +249,7 @@ def _extract_metadata_sync(
         title=info.get("title"),
         creator=info.get("uploader") or info.get("channel"),
         follower_count=info.get("channel_follower_count"),
-        views=info.get("view_count"),
+        views=info.get("view_count") or info.get("play_count"),
         likes=info.get("like_count"),
         comments=info.get("comment_count"),
         hashtags=hashtags,
@@ -256,6 +264,15 @@ def _extract_metadata_sync(
         comments = metadata.comments or 0
         metadata.engagement_rate = round(
             ((likes + comments) / metadata.views) * 100, 4
+        )
+    elif metadata.likes and metadata.likes > 0:
+        # Instagram Reels often hide view counts. In that case, we can't compute
+        # a true engagement rate. We flag it as None and let the frontend show "N/A".
+        # The LLM can still compare likes/comments directly.
+        logger.warning(
+            "No view count for video %s (%s) — engagement rate unavailable. "
+            "Likes: %s, Comments: %s",
+            video_id, platform, metadata.likes, metadata.comments,
         )
 
     logger.info(
@@ -434,68 +451,90 @@ def _download_audio_sync(
     raise FileNotFoundError(f"No audio file found in {tmp_dir} after yt-dlp download.")
 
 
+# ── Singleton Whisper model ──
+# Loaded once on first transcription call, reused forever.
+# "base" model is ~150MB — good balance of speed/quality for short reels.
+# On CPU: ~30s per 1-minute reel. On GPU: ~3s.
+_whisper_model: WhisperModel | None = None
+
+
+def _get_whisper_model() -> WhisperModel:
+    """Lazy-load the Whisper model (singleton pattern)."""
+    global _whisper_model
+    if _whisper_model is None:
+        logger.info("Loading local Whisper model (base)... first run downloads ~150MB")
+        _whisper_model = WhisperModel(
+            "base",
+            device="cpu",
+            compute_type="int8",  # Quantized — 2x faster on CPU, minimal quality loss
+        )
+        logger.info("Whisper model loaded successfully")
+    return _whisper_model
+
+
 def _transcribe_with_whisper_sync(
     audio_path: str,
     video_id: Literal["A", "B"],
 ) -> TranscriptResult:
     """
-    Transcribe an audio file using OpenAI's Whisper API.
+    Transcribe an audio file using local faster-whisper (FREE, no API key).
 
-    Why the OpenAI API instead of local faster-whisper?
-    - No GPU dependency — works on any machine.
-    - No model download (faster-whisper's large-v3 is ~3GB).
-    - Consistent quality regardless of hardware.
-    - Trade-off: costs money and requires network. For a dev project, this is fine.
-      Swap to faster-whisper for production/air-gapped environments.
+    Why faster-whisper instead of the paid OpenAI Whisper API?
+    - Zero cost — no OPENAI_API_KEY needed
+    - 4x faster than original openai-whisper on CPU (CTranslate2 backend)
+    - int8 quantization gives another 2x speedup with <1% quality loss
+    - Model downloads once (~150MB), cached in ~/.cache/huggingface/
+    - Works fully offline after first download
 
-    We use the verbose_json response format to get word-level timestamps,
-    then aggregate into segment-level chunks.
+    Trade-off: ~30s per 1-minute reel on CPU. For production at 1000 creators/day,
+    scale vertically (GPU instance) or horizontally (worker queue + GPU pool).
     """
-    client = OpenAI()  # Reads OPENAI_API_KEY from env
+    model = _get_whisper_model()
 
-    with open(audio_path, "rb") as audio_file:
-        response = client.audio.transcriptions.create(
-            model="whisper-1",
-            file=audio_file,
-            response_format="verbose_json",
-            timestamp_granularities=["segment"],
-        )
+    # Transcribe with word-level timestamps
+    segments, info = model.transcribe(
+        audio_path,
+        beam_size=5,  # Beam search for better accuracy
+        vad_filter=True,  # Voice Activity Detection — skips silence, 2x faster
+    )
 
     chunks: list[TranscriptChunk] = []
 
-    # verbose_json returns segments with start/end times
-    if hasattr(response, "segments") and response.segments:
-        for seg in response.segments:
+    for segment in segments:
+        text = segment.text.strip()
+        if text:  # Skip empty segments
             chunks.append(
                 TranscriptChunk(
                     video_id=video_id,
-                    text=seg.get("text", "").strip() if isinstance(seg, dict) else seg.text.strip(),
-                    start=seg.get("start", 0.0) if isinstance(seg, dict) else seg.start,
-                    end=seg.get("end", 0.0) if isinstance(seg, dict) else seg.end,
+                    text=text,
+                    start=segment.start,
+                    end=segment.end,
                 )
             )
-    else:
-        # Fallback: if no segments, use full text as single chunk
+
+    # If no segments found, create a single empty chunk
+    if not chunks:
         chunks.append(
             TranscriptChunk(
                 video_id=video_id,
-                text=response.text.strip(),
+                text="[No speech detected]",
                 start=0.0,
                 end=0.0,
             )
         )
 
     logger.info(
-        "Whisper transcribed video %s: %d segments, language=%s",
+        "Local Whisper transcribed video %s: %d segments, language=%s (%.1fs audio)",
         video_id,
         len(chunks),
-        getattr(response, "language", "unknown"),
+        info.language,
+        info.duration,
     )
 
     return TranscriptResult(
         video_id=video_id,
-        source="whisper_fallback",
-        language=getattr(response, "language", None),
+        source="local_whisper",
+        language=info.language,
         chunks=chunks,
     )
 

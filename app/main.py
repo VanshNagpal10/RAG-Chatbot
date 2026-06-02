@@ -360,16 +360,16 @@ async def chat(
         data: {"type": "sources", "content": [{"video_id": "A", ...}]}
         data: {"type": "done"}
 
-    Requires GOOGLE_API_KEY in .env for the Gemini LLM.
+    Requires GROQ_API_KEY in .env for the Groq LLM.
     """
     # Validate that the LLM API key is configured
-    google_key = os.getenv("GOOGLE_API_KEY")
-    if not google_key:
+    groq_key = os.getenv("GROQ_API_KEY")
+    if not groq_key:
         raise HTTPException(
             status_code=500,
             detail=(
-                "GOOGLE_API_KEY is not set. The /chat endpoint requires a Gemini API key. "
-                "Get a free one at https://aistudio.google.com/apikey"
+                "GROQ_API_KEY is not set. The /chat endpoint requires a Groq API key. "
+                "Get a free one at https://console.groq.com/keys"
             ),
         )
 

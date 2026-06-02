@@ -114,7 +114,7 @@ class TranscriptResult(BaseModel):
     """Full transcript for a single video."""
 
     video_id: Literal["A", "B"]
-    source: Literal["youtube_api", "whisper_fallback"]
+    source: Literal["youtube_api", "whisper_fallback", "local_whisper"]
     language: Optional[str] = None
     chunks: list[TranscriptChunk]
 

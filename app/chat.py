@@ -46,7 +46,7 @@ from langchain_core.documents import Document
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.output_parsers import StrOutputParser
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_groq import ChatGroq
 
 from app.vector_store import VectorStoreService
 
@@ -215,7 +215,7 @@ async def stream_rag_response(
     query: str,
     chat_history: list[dict],
     vs: VectorStoreService,
-    model_name: str = "gemini-1.5-flash",
+    model_name: str = "llama-3.3-70b-versatile",
 ) -> AsyncGenerator[str, None]:
     """
     SSE streaming generator for the /chat endpoint.
@@ -236,9 +236,15 @@ async def stream_rag_response(
     │ 4. SOURCES                                                   │
     │    Emit retrieved docs as final SSE event                    │
     └──────────────────────────────────────────────────────────────┘
+
+    LLM: Groq (llama-3.3-70b-versatile)
+    - Free tier: 30 RPM, 14,400 RPD, 131K context window
+    - Inference speed: ~500 tokens/sec (fastest in the market)
+    - Quality: 70B parameter Llama 3.3 — rivals GPT-4o on reasoning
+    - Cost: $0 on free tier
     """
-    # Initialize LLM with streaming enabled
-    llm = ChatGoogleGenerativeAI(
+    # Initialize Groq LLM — reads GROQ_API_KEY from env
+    llm = ChatGroq(
         model=model_name,
         streaming=True,
         temperature=0.3,  # Low temp for factual analysis

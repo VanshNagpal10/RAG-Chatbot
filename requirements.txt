@@ -7,8 +7,8 @@ pydantic>=2.11.0
 yt-dlp>=2025.5.0
 youtube-transcript-api>=1.2.0
 
-# Audio transcription — optional, only for Whisper fallback
-openai>=1.82.0
+# Audio transcription — FREE local Whisper (no API key needed)
+faster-whisper>=1.2.0
 
 # LangChain — chunking, documents, chains
 langchain-core>=0.3.60
@@ -19,8 +19,8 @@ langchain>=0.3.0
 langchain-huggingface>=1.2.0
 sentence-transformers>=5.0.0
 
-# LLM — Gemini 1.5 Flash (free) for RAG chat
-langchain-google-genai>=4.0.0
+# LLM — Groq (Llama 3.3 70B, free tier) for RAG chat
+langchain-groq>=0.3.0
 
 # Vector store
 langchain-chroma>=0.2.0
